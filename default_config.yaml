@@ -1,0 +1,335 @@
+# Default Configuration for Motion-Field Covert Communication System
+# All parameters can be overridden via command-line arguments
+
+# ============================================================================
+# SYSTEM CONFIGURATION
+# ============================================================================
+system:
+  version: "1.0.0"
+  random_seed: 42
+  debug_mode: false
+  verbose: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# ============================================================================
+# VIDEO I/O CONFIGURATION
+# ============================================================================
+video:
+  fps: 30
+  resolution: [640, 480]  # [width, height] or null for auto
+  codec: "libx264"
+  input_format: "mp4"
+  output_format: "mp4"
+  pixel_format: "yuv420p"
+  
+  # Encoding parameters for stego video
+  encoding:
+    crf: 18  # Constant Rate Factor (18=high quality, 23=default, 28=visible loss)
+    preset: "slow"  # ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+    tune: null  # film, animation, grain, stillimage, fastdecode, zerolatency
+    
+# ============================================================================
+# OPTICAL FLOW CONFIGURATION
+# ============================================================================
+optical_flow:
+  model: "raft"
+  weights_path: "models/raft/raft-things.pth"
+  device: "cuda"  # cuda or cpu
+  
+  # RAFT-specific parameters
+  raft:
+    small: false  # Use RAFT-small (faster but less accurate)
+    iters: 20  # Number of refinement iterations
+    mixed_precision: false  # Use mixed precision for faster inference
+  
+  # Flow preprocessing
+  preprocessing:
+    normalize: true
+    max_flow_magnitude: 100.0  # Clip extreme outliers
+    
+# ============================================================================
+# CRYPTOGRAPHIC CONFIGURATION
+# ============================================================================
+crypto:
+  # Key Derivation Function (Argon2id)
+  kdf:
+    algorithm: "argon2id"
+    memory_cost: 65536  # 64 MB (in KB)
+    time_cost: 3  # Number of iterations
+    parallelism: 4  # Number of parallel threads
+    salt_length: 16  # bytes
+    key_length: 32  # bytes (256 bits for ChaCha20)
+    
+  # Authenticated Encryption with Associated Data
+  aead:
+    cipher: "chacha20-poly1305"
+    nonce_size: 12  # bytes (96 bits)
+    tag_size: 16  # bytes (128 bits)
+    
+  # Security parameters
+  security:
+    require_strong_password: true
+    min_password_length: 12
+    
+# ============================================================================
+# ERROR CORRECTION CODING CONFIGURATION
+# ============================================================================
+ecc:
+  type: "reed_solomon"  # reed_solomon or ldpc
+  
+  # Reed-Solomon parameters
+  reed_solomon:
+    n: 255  # Total codeword length
+    k: 223  # Message length (data symbols)
+    nsym: 32  # Parity symbols (n - k)
+    # Code rate: k/n = 223/255 ≈ 0.875
+    # Can correct up to nsym/2 = 16 symbol errors
+    
+  # LDPC parameters (if type == "ldpc")
+  ldpc:
+    code_rate: 0.8
+    block_length: 1024
+    
+  # Error injection for testing
+  testing:
+    inject_errors: false
+    error_rate: 0.01  # Bit error rate for testing
+    
+# ============================================================================
+# MOTION-FIELD MODULATION CONFIGURATION (CORE)
+# ============================================================================
+modulation:
+  method: "qim"  # Quantization Index Modulation
+  
+  # Embedding parameters
+  embedding:
+    epsilon: 0.5  # Maximum perturbation magnitude (pixels)
+    quantization_step: 2.0  # QIM quantization step size (Δ)
+    max_payload_bits: 4096  # Upper bound on total bits per video (adaptive allocation)
+  # NOTE:
+  # Actual bits embedded per frame are determined dynamically
+  # via compute_capacity(flow). Frames with insufficient motion
+  # are skipped entirely.
+
+  # Selection strategy
+  selection:
+    motion_threshold: 1.0  # Minimum motion magnitude to embed (pixels)
+    use_high_motion_regions: true  # Prefer high-motion areas
+    spatial_distribution: "uniform"  # uniform, random, adaptive
+    
+  # Constraints
+  constraints:
+    enforce_smoothness: true
+    smoothness_kernel_size: 5  # Gaussian kernel size for smoothness filtering
+    smoothness_sigma: 1.0
+    
+    enforce_magnitude_bounds: true
+    min_magnitude_ratio: 0.8  # m' >= 0.8 * m
+    max_magnitude_ratio: 1.2  # m' <= 1.2 * m
+    
+    enforce_perceptual_limit: true
+    max_l_infinity_norm: 1.0  # ||v' - v||_∞ <= this value
+    
+  # Demodulation parameters
+  demodulation:
+    decision_boundary: 0.25  # Fractional part threshold for bit decision
+    use_soft_decisions: false  # Use soft information for ECC
+    
+# ============================================================================
+# VIDEO RECONSTRUCTION CONFIGURATION
+# ============================================================================
+reconstruction:
+  method: "warp"  # warp, blend, or hybrid
+  
+  # Warping parameters
+  warping:
+    interpolation: "bilinear"  # nearest, bilinear, bicubic
+    border_mode: "replicate"  # constant, replicate, reflect
+    
+  # Blending parameters
+  blending:
+    alpha: 0.9  # I' = α*I_original + (1-α)*I_warped
+    
+  # Temporal consistency
+  temporal:
+    apply_filter: true
+    filter_type: "gaussian"  # gaussian, bilateral
+    temporal_window: 3  # frames
+    
+  # Quality metrics to compute
+  quality_metrics:
+    compute_psnr: true
+    compute_ssim: true
+    compute_mse: true
+    
+# ============================================================================
+# CHANNEL SIMULATION CONFIGURATION
+# ============================================================================
+channel:
+  # Compression parameters
+  compression:
+    enabled: true
+    codec: "libx264"
+    crf: 23  # 18=minimal loss, 23=default, 28=visible loss
+    preset: "medium"
+    
+  # Noise parameters
+  noise:
+    enabled: false
+    type: "gaussian"  # gaussian, salt_pepper, speckle
+    sigma: 0.0  # Standard deviation (0 = no noise)
+    
+  # Other attacks (optional)
+  attacks:
+    frame_drops: false
+    frame_drop_rate: 0.0
+    
+    temporal_resampling: false
+    target_fps: null
+    
+    spatial_resampling: false
+    target_resolution: null
+    
+# ============================================================================
+# STEGANALYSIS CONFIGURATION
+# ============================================================================
+steganalysis:
+  # Feature extraction
+  features:
+    feature_dim: 512
+    
+    magnitude_features: true
+    magnitude_bins: 32
+    
+    directional_features: true
+    direction_bins: 16
+    
+    temporal_features: true
+    temporal_window: 5
+    
+    cooccurrence_features: true
+    cooccurrence_distance: 1
+    
+  # CNN detector
+  detector:
+    architecture: "mlp"  # mlp, cnn1d, resnet
+    hidden_dims: [256, 128, 64]
+    dropout: 0.3
+    activation: "relu"
+    
+  # Training parameters
+  training:
+    batch_size: 16
+    epochs: 50
+    learning_rate: 0.0001
+    optimizer: "adam"
+    weight_decay: 0.0001
+    
+    validation_split: 0.2
+    early_stopping: true
+    patience: 10
+    
+    # Data augmentation
+    augmentation:
+      enabled: false
+      
+  # Evaluation
+  evaluation:
+    compute_roc: true
+    compute_auc: true
+    save_predictions: true
+    
+# ============================================================================
+# MATHEMATICAL MODELING CONFIGURATION
+# ============================================================================
+math_models:
+  # Channel model parameters
+  channel_model:
+    noise_type: "gaussian"
+    estimate_snr: true
+    
+  # Capacity analysis
+  capacity:
+    compute_shannon_limit: true
+    bandwidth_multiplier: 1.0
+    
+  # Monte Carlo simulations
+  monte_carlo:
+    num_trials: 1000
+    confidence_level: 0.95
+    
+# ============================================================================
+# LOGGING AND OUTPUT CONFIGURATION
+# ============================================================================
+logging:
+  log_to_file: true
+  log_dir: "logs"
+  log_filename: "motion_covert_comm.log"
+  
+  # Console output
+  console:
+    use_colors: true
+    show_timestamps: true
+    
+  # Metrics logging
+  metrics:
+    log_interval: 10  # Log every N iterations
+    save_metrics: true
+    metrics_file: "metrics.json"
+    
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+output:
+  # Output directories
+  stego_video_dir: "data/videos/stego"
+  results_dir: "data/results"
+  plots_dir: "data/results/plots"
+  
+  # Save intermediate results
+  save_flows: false
+  flows_dir: "data/motion_fields"
+  
+  save_embedding_maps: false
+  embedding_maps_dir: "data/results/embedding_maps"
+  
+  # Visualization
+  visualization:
+    enabled: true
+    plot_flows: true
+    plot_embeddings: true
+    plot_metrics: true
+    
+# ============================================================================
+# EXPERIMENTAL CONFIGURATION
+# ============================================================================
+experiments:
+  # Ablation study parameters
+  ablation:
+    vary_epsilon: [0.1, 0.5, 1.0, 2.0]
+    vary_max_payload: [512, 1024, 2048, 4096]
+    vary_crf: [18, 23, 28]
+    vary_ecc_nsym: [16, 32, 64]
+    
+  # Reproducibility
+  reproducibility:
+    set_all_seeds: true
+    deterministic: true
+    benchmark: false
+    
+# ============================================================================
+# PERFORMANCE CONFIGURATION
+# ============================================================================
+performance:
+  # CPU/GPU
+  device: "cuda"  # cuda or cpu
+  num_workers: 4  # For data loading
+  pin_memory: true
+  
+  # Memory management
+  clear_cache: true
+  max_video_frames: null  # Limit frames loaded (null = all)
+  
+  # Batch processing
+  batch_flows: false
+  flow_batch_size: 4
