@@ -121,7 +121,7 @@ modulation:
   constraints:
     enforce_smoothness: true
     smoothness_kernel_size: 5  # Gaussian kernel size for smoothness filtering
-    smoothness_sigma: 1.0
+    smoothness_sigma: 0.1
     
     enforce_magnitude_bounds: true
     min_magnitude_ratio: 0.8  # m' >= 0.8 * m
