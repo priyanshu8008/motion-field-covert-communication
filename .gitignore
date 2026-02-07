@@ -19,3 +19,6 @@ data/results/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python packaging artifacts
+*.egg-info/
