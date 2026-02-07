@@ -1,0 +1,22 @@
+# Default Configuration for Module 3: Temporal Signal Encoding
+
+# Default aggregation method for converting flow to signal
+default_method: magnitude_mean
+
+# Default temporal filter (null = no filtering)
+default_filter: null
+
+# Quantization configuration
+quantization:
+  enabled: true
+  levels: 256  # Number of discrete levels (256 = uint8 range)
+
+# Temporal filter configurations
+filters:
+  # Moving average filter
+  moving_average:
+    window: 5  # Window size for averaging
+  
+  # Exponential smoothing filter
+  exponential_smoothing:
+    alpha: 0.3  # Smoothing factor (0 = max smoothing, 1 = no smoothing)
