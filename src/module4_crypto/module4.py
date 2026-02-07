@@ -1,4 +1,10 @@
 # file: module4_crypto/module4.py
+# ============================================
+# MODULE 4 — FROZEN
+# Deterministic cryptographic pipeline
+# DO NOT MODIFY WITHOUT FULL SYSTEM REVIEW
+# ============================================
+
 """
 Module 4: Cryptographic Pipeline
 
