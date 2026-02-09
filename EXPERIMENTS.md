@@ -60,3 +60,36 @@ Validate correctness of QIM embedding + extraction + ECC decoding under ideal mo
 
 **Conclusion:**  
 The modulation–demodulation–ECC pipeline is functionally correct under controlled motion.
+
+
+# Experimental Evaluation
+
+## Experiment 1: Capacity vs Motion Magnitude
+We evaluate the theoretical embedding capacity as a function of motion magnitude
+using synthetic uniform flow fields.
+
+**Result:** Capacity increases sharply once motion exceeds the threshold,
+then saturates at the configured maximum payload.
+
+See: exp1_capacity_vs_motion.py
+
+---
+
+## Experiment 2: Synthetic Motion Roundtrip
+A high-motion synthetic flow field was used to embed ECC-protected payloads
+and recover them via QIM demodulation.
+
+**Result:** Bit-exact recovery was achieved with zero errors.
+
+See: exp2_synthetic_roundtrip.py
+
+---
+
+## Experiment 3: Real Video Capacity Profiling
+Optical flow was extracted from real video sequences and per-frame embedding
+capacity was computed.
+
+**Result:** Capacity varies significantly across frames and correlates with
+motion intensity.
+
+See: fig_capacity_vs_frame.png

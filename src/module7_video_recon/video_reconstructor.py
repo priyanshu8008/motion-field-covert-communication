@@ -37,43 +37,10 @@ class VideoReconstructor:
     ) -> Tuple[List[np.ndarray], Optional[QualityMetrics]]:
         """
         Reconstruct video from modified optical flows.
-        
-        Algorithm (MANDATORY - LOCKED):
-            I'_0 = I_0  (first frame unchanged)
-            
-            For t = 1 to N-1:
-                I_warped_t = warp(I'_{t-1}, F'_{t-1})
-                
-                If blend mode:
-                    I'_t = α·I_original_t + (1-α)·I_warped_t
-                Else:
-                    I'_t = I_warped_t
-            
-            If temporal filtering enabled:
-                Apply temporal filter to all I'_t
-        
-        Args:
-            frames: Original video frames (N frames, H×W×3 uint8)
-            flows: Modified optical flows from Module 5 (N-1 flows, H×W×2 float32)
-            config: Configuration dict from default_config.yaml
-            
-        Returns:
-            stego_frames: Reconstructed frames (N frames, H×W×3 uint8)
-            metrics: Quality metrics (optional, None if disabled)
-            
-        Raises:
-            ValueError: If frame/flow count mismatch or invalid config
-            
-        Notes:
-            - Deterministic: same (frames, flows, config) → same output
-            - Preserves embedded QIM perturbations exactly
-            - Does NOT modify flows in any way
-            - First frame is always unchanged (I'_0 = I_0)
         """
         # Validate inputs
         N = len(frames)
         
-        # Handle empty input
         if N == 0:
             return [], None
         
@@ -84,30 +51,36 @@ class VideoReconstructor:
             )
         
         # Extract configuration
-        method = config.get('method', 'warp')
+        recon_config = config.get("reconstruction", {})
+        method = recon_config.get("method", "warp")
+
         
         # Warping parameters
-        warping_config = config.get('warping', {})
+        warping_config = recon_config.get('warping', {})
         interpolation = warping_config.get('interpolation', 'bilinear')
         border_mode = warping_config.get('border_mode', 'replicate')
         
         # Blending parameters
-        blending_config = config.get('blending', {})
+        blending_config = recon_config.get('blending', {})
         alpha = blending_config.get('alpha', 0.9)
         
         # Temporal filtering parameters
-        temporal_config = config.get('temporal', {})
+        temporal_config = recon_config.get('temporal', {})
         apply_temporal = temporal_config.get('apply_filter', False)
         filter_type = temporal_config.get('filter_type', 'gaussian')
         temporal_window = temporal_config.get('temporal_window', 3)
         
         # Quality metrics parameters
-        metrics_config = config.get('quality_metrics', {})
+        metrics_config = recon_config.get('quality_metrics', {})
         compute_metrics = (
             metrics_config.get('compute_psnr', True) or
             metrics_config.get('compute_ssim', True) or
             metrics_config.get('compute_mse', True)
         )
+
+        # 🔑 MINIMAL ADDITION: anchor period (drift control)
+        anchor_period = int(config.get("anchor_period", 10))
+        anchor_period = max(1, anchor_period)
         
         # Initialize reconstructed frames list
         stego_frames = []
@@ -119,13 +92,15 @@ class VideoReconstructor:
         
         # Warp subsequent frames
         for t in range(1, N):
-            # Get previous reconstructed frame
+
+            # 🔒 ANCHOR FRAME RESET (ONLY NEW LOGIC)
+            if t % anchor_period == 0:
+                stego_frames.append(frames[t].copy())
+                continue
+
             prev_frame = stego_frames[t - 1]
-            
-            # Get flow F'_{t-1}
             flow = flows[t - 1]
             
-            # Warp previous reconstructed frame
             warped_frame = warp_frame(
                 prev_frame,
                 flow,
@@ -133,17 +108,12 @@ class VideoReconstructor:
                 border_mode=border_mode
             )
             
-            # Apply blending if configured
-            if method == "blend":
-                # Blend with original frame
-                reconstructed_frame = blend_frames(
-                    frames[t],
-                    warped_frame,
-                    alpha
-                )
-            else:
-                # Pure warping (default)
-                reconstructed_frame = warped_frame
+            reconstructed_frame = blend_frames(
+                frames[t],
+                warped_frame,
+                alpha
+            )
+
             
             stego_frames.append(reconstructed_frame)
         
@@ -170,18 +140,6 @@ class VideoReconstructor:
     ) -> np.ndarray:
         """
         Warp single frame using optical flow.
-        
-        Args:
-            frame: Source frame (H, W, 3) uint8
-            flow: Optical flow field (H, W, 2) float32
-            config: Configuration dict
-            
-        Returns:
-            warped_frame: Warped frame (H, W, 3) uint8
-            
-        Notes:
-            - Wrapper for warping.warp_frame with config extraction
-            - Used for single-frame operations
         """
         warping_config = config.get('warping', {})
         interpolation = warping_config.get('interpolation', 'bilinear')
@@ -196,17 +154,5 @@ class VideoReconstructor:
     ) -> QualityMetrics:
         """
         Compute quality metrics comparing original and reconstructed frames.
-        
-        Args:
-            original_frames: Original frames (N, H, W, 3)
-            reconstructed_frames: Reconstructed frames (N, H, W, 3)
-            
-        Returns:
-            metrics: Aggregated quality metrics (PSNR, SSIM, MSE)
-            
-        Notes:
-            - Computes per-frame metrics, then aggregates (mean)
-            - For evaluation/debugging only
-            - Not used by downstream modules
         """
         return compute_video_quality(original_frames, reconstructed_frames)

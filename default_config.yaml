@@ -32,6 +32,8 @@ video:
 # OPTICAL FLOW CONFIGURATION
 # ============================================================================
 optical_flow:
+  # backend: "gmflow"
+  # weights_path: "src/module2_motion_extraction/models/gmflow_sintel.pth"
   model: "raft"
   weights_path: "models/raft/raft-things.pth"
   device: "cuda"  # cuda or cpu
@@ -103,8 +105,8 @@ modulation:
   
   # Embedding parameters
   embedding:
-    epsilon: 0.5  # Maximum perturbation magnitude (pixels)
-    quantization_step: 2.0  # QIM quantization step size (Δ)
+    epsilon: 0.15  # Maximum perturbation magnitude (pixels)
+    quantization_step: 2  # QIM quantization step size (Δ)
     max_payload_bits: 4096  # Upper bound on total bits per video (adaptive allocation)
   # NOTE:
   # Actual bits embedded per frame are determined dynamically
@@ -121,11 +123,11 @@ modulation:
   constraints:
     enforce_smoothness: true
     smoothness_kernel_size: 5  # Gaussian kernel size for smoothness filtering
-    smoothness_sigma: 0.1
+    smoothness_sigma: 0.3
     
     enforce_magnitude_bounds: true
-    min_magnitude_ratio: 0.8  # m' >= 0.8 * m
-    max_magnitude_ratio: 1.2  # m' <= 1.2 * m
+    min_magnitude_ratio: 0.9  # m' >= 0.8 * m
+    max_magnitude_ratio: 1.1  # m' <= 1.2 * m
     
     enforce_perceptual_limit: true
     max_l_infinity_norm: 1.0  # ||v' - v||_∞ <= this value
@@ -139,7 +141,8 @@ modulation:
 # VIDEO RECONSTRUCTION CONFIGURATION
 # ============================================================================
 reconstruction:
-  method: "warp"  # warp, blend, or hybrid
+  anchor_period: 10   # reset every 10 frames (safe)
+  method: "blend"  # warp, blend, or hybrid
   
   # Warping parameters
   warping:
@@ -148,7 +151,7 @@ reconstruction:
     
   # Blending parameters
   blending:
-    alpha: 0.9  # I' = α*I_original + (1-α)*I_warped
+    alpha: 0.95  # I' = α*I_original + (1-α)*I_warped
     
   # Temporal consistency
   temporal:
